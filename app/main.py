@@ -93,10 +93,37 @@ class Ship:
             self.is_drowned = True
 
 
-class FleetValidator:
+class Battleship:
     FIELD_SIZE = 10
 
-    def validate(self, ships: list[Ship]) -> None:
+    def __init__(
+            self,
+            ships: list[tuple[tuple, tuple]]
+    ) -> None:
+        ships_objects = self._build_ships(ships)
+        self._validate_field(ships_objects)
+        self.field = self._build_field_dict(ships_objects)
+
+    def _build_ships(
+            self,
+            ship_list: list[tuple[tuple, tuple]]
+    ) -> list[Ship]:
+        return [
+            Ship(Deck(*start_coords), Deck(*end_coords))
+            for start_coords, end_coords in ship_list
+        ]
+
+    def _build_field_dict(
+            self,
+            ship_list: list[Ship]
+    ) -> dict:
+        fields_dict = {}
+        for ship in ship_list:
+            for deck in ship.decks:
+                fields_dict[(deck.row, deck.column)] = ship
+        return fields_dict
+
+    def _validate_field(self, ships: list[Ship]) -> None:
         self._validate_fleet_size(ships)
         self._validate_ships(ships)
         self._validate_fleet_composition(ships)
@@ -129,7 +156,8 @@ class FleetValidator:
             raise ValueError(
                 f"Ship #{idx}: invalid length. "
                 f"Ships must have length between 1 and 4. "
-                f"Got length={length} for start={ship.start}, end={ship.end}."
+                f"Got length={length} for "
+                f"start={ship.start}, end={ship.end}."
             )
 
     def _validate_in_bounds(self, ship: Ship, idx: int) -> None:
@@ -139,8 +167,8 @@ class FleetValidator:
                     and 0 <= deck.column < self.FIELD_SIZE
             ):
                 raise ValueError(
-                    f"Ship #{idx}: coordinate out "
-                    f"of bounds: ({deck.row}, {deck.column}). "
+                    f"Ship #{idx}: coordinate out of "
+                    f"bounds: ({deck.row}, {deck.column}). "
                     f"Allowed range is 0..{self.FIELD_SIZE - 1}. "
                     f"Ship start={ship.start}, end={ship.end}."
                 )
@@ -166,8 +194,7 @@ class FleetValidator:
                     f"Invalid fleet composition: "
                     f"expected {exp_count} {names[length]} "
                     f"ship(s), got {got}. "
-                    f"Actual counts by length: "
-                    f"{lengths_list}."
+                    f"Actual counts by length: {lengths_list}."
                 )
 
     def _validate_no_neighbors(self, ships: list[Ship]) -> None:
@@ -183,40 +210,12 @@ class FleetValidator:
                     f"Invalid ship placement: ships "
                     f"overlap or touch at {sorted(conflicts)}."
                 )
+
             for row, column in decks:
                 for dx, dy in shifts:
                     nr, nc = row + dx, column + dy
                     if 0 <= nr < self.FIELD_SIZE and 0 <= nc < self.FIELD_SIZE:
                         forbidden.add((nr, nc))
-
-
-class Battleship:
-    def __init__(
-            self,
-            ships: list[tuple[tuple, tuple]]
-    ) -> None:
-        ships_objects = self._build_ships(ships)
-        FleetValidator().validate(ships_objects)
-        self.field = self._build_field_dict(ships_objects)
-
-    def _build_ships(
-            self,
-            ship_list: list[tuple[tuple, tuple]]
-    ) -> list[Ship]:
-        return [
-            Ship(Deck(*start_coords), Deck(*end_coords))
-            for start_coords, end_coords in ship_list
-        ]
-
-    def _build_field_dict(
-            self,
-            ship_list: list[Ship]
-    ) -> dict:
-        fields_dict = {}
-        for ship in ship_list:
-            for deck in ship.decks:
-                fields_dict[(deck.row, deck.column)] = ship
-        return fields_dict
 
     def fire(self, location: tuple) -> str:
         try:
@@ -229,32 +228,26 @@ class Battleship:
             return "Miss!"
 
     def print_field(self) -> None:
-        # порожні поля
-        deck = [
-            ["~" for _ in range(FleetValidator.FIELD_SIZE)]
-            for _ in range(FleetValidator.FIELD_SIZE)
+        grid = [
+            ["~" for _ in range(self.FIELD_SIZE)]
+            for _ in range(self.FIELD_SIZE)
         ]
 
-        # кораблі
-        for location, ship in self.field.items():
-            row, column = location
+        for (row, column), ship in self.field.items():
             cur_deck = ship.get_deck(row, column)
 
             if ship.is_drowned:
-                deck[row][column] = "x"
-            elif not cur_deck.is_alive and not ship.is_drowned:
-                deck[row][column] = "*"
-            elif cur_deck.is_alive:
-                deck[row][column] = u"\u25A1"
+                grid[row][column] = "x"
+            elif not cur_deck.is_alive:
+                grid[row][column] = "*"
+            else:
+                grid[row][column] = u"\u25A1"
 
-        # нумерація поля
-        for i, row in enumerate(deck):
+        for i, row_vals in enumerate(grid):
             if i == 0:
                 print(
                     " ", " ".join(
-                        str(num) for num in range(
-                            FleetValidator.FIELD_SIZE
-                        )
+                        str(num) for num in range(self.FIELD_SIZE)
                     )
                 )
-            print(i, " ".join(row))
+            print(i, " ".join(row_vals))
